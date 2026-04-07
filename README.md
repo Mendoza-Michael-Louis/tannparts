@@ -1,4 +1,4 @@
-# Tannpart — Setup Guide
+# Tannparts — Setup Guide
 
 ## Requirements
 - PHP 8.0+
@@ -36,7 +36,7 @@ mysql -u root -p < schema.sql
 Or paste the contents of `schema.sql` into phpMyAdmin's SQL tab.
 
 This will:
-- Create the `corevault` database
+- Create the `tannparts` database
 - Create all tables (`users`, `categories`, `products`, `cart_items`, `orders`, `order_items`)
 - Insert the 6 categories and 10 products as seed data
 
@@ -48,7 +48,7 @@ Open `db.php` and update your credentials:
 
 ```php
 define('DB_HOST', 'localhost');
-define('DB_NAME', 'corevault');
+define('DB_NAME', 'tannparts');
 define('DB_USER', 'root');       // your MySQL username
 define('DB_PASS', '');           // your MySQL password
 ```
@@ -58,15 +58,15 @@ define('DB_PASS', '');           // your MySQL password
 ## 3. Serve the Project
 
 **XAMPP / Laragon:**  
-Copy the entire `corevault/` folder into your web root:
-- XAMPP: `C:/xampp/htdocs/corevault/`
-- Laragon: `C:/laragon/www/corevault/`
+Copy the entire `tannparts/` folder into your web root:
+- XAMPP: `C:/xampp/htdocs/tannparts/`
+- Laragon: `C:/laragon/www/tannparts/`
 
-Then open: `http://localhost/corevault/index.php`
+Then open: `http://localhost/tannparts/index.php`
 
 **PHP built-in server (for quick testing):**
 ```bash
-cd corevault
+cd tannparts
 php -S localhost:8000
 ```
 Then open: `http://localhost:8000/index.php`
