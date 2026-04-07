@@ -10,7 +10,7 @@
 ## File Structure
 
 ```
-corevault/
+filename/
 ├── index.php          ← Main entry point (rename from index.html)
 ├── styles.css
 ├── app.js
