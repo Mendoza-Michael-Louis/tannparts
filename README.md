@@ -1,4 +1,4 @@
-# CoreVault — Setup Guide
+# Tannpart — Setup Guide
 
 ## Requirements
 - PHP 8.0+
