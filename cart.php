@@ -2,7 +2,7 @@
 // api/cart.php — handles: get | add | update | remove | clear
 session_start();
 header('Content-Type: application/json');
-require_once __DIR__ . '/../db.php';
+require_once __DIR__ . '/db.php';
 
 // All cart operations require a logged-in user
 function requireAuth(): int {

@@ -2,7 +2,7 @@
 // api/auth.php — handles: register | login | logout | me
 session_start();
 header('Content-Type: application/json');
-require_once __DIR__ . '/../db.php';
+require_once __DIR__ . '/db.php';
 
 $action = $_GET['action'] ?? '';
 

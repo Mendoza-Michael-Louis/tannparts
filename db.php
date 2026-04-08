@@ -1,6 +1,6 @@
 <?php
 define('DB_HOST', 'localhost');
-define('DB_NAME', 'corevault');
+define('DB_NAME', 'tannparts');
 define('DB_USER', 'root');       // change to your MySQL user
 define('DB_PASS', '');           // change to your MySQL password
 define('DB_CHARSET', 'utf8mb4');

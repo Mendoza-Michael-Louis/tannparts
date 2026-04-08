@@ -1,6 +1,6 @@
 // ============================================================
 // CoreVault — app.js
-// All data is fetched from PHP/MySQL via the /api/ endpoints.
+// All data is fetched from PHP/MySQL via the PHP endpoints.
 // ============================================================
 
 // ============================================================
@@ -12,6 +12,32 @@ let CATEGORIES   = [];     // loaded from DB
 let cart         = [];     // [{ product_id, name, icon, price, quantity, ... }]
 let currentPage  = 'home';
 let currentCat   = null;
+let currentBrand = null;
+const PRODUCT_IMG_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+const PRODUCT_IMAGE_MAP = {
+  1: 'intel core i9 14900k.png',
+  2: 'amd ryzen 9 7950x.png',
+  3: 'nvidia rx 4090.png',
+  4: 'amd radeon rx 7900 xtx.png',
+  5: 'corsair vengeance 32gb ddr5 6000mhz.png',
+  6: 'g.skill trident z5.png',
+  7: 'samgsung 990 pro 2tb nvme.png',
+  8: 'nzxt kraken 360 aio.png',
+  9: 'asus rog maximus z790.png',
+  10: 'msi mag b650 Tomahawk.png',
+};
+const CATEGORY_ALIASES = {
+  cpu: 'CPU',
+  cpus: 'CPU',
+  gpu: 'GPU',
+  gpus: 'GPU',
+  ram: 'Memory',
+  memory: 'Memory',
+  motherboard: 'Motherboard',
+  motherboards: 'Motherboard',
+  storage: 'Storage',
+  cooling: 'Cooling',
+};
 
 // ============================================================
 // API HELPERS
@@ -31,6 +57,117 @@ async function api(url, method = 'GET', body = null) {
 function apiGet(url)             { return api(url, 'GET'); }
 function apiPost(url, body = {}) { return api(url, 'POST', body); }
 
+function normalizeCategorySlug(category) {
+  if (!category) return null;
+
+  const raw = String(category).trim();
+  if (!raw) return null;
+
+  const direct = CATEGORIES.find(c => String(c.slug) === raw);
+  if (direct) return direct.slug;
+
+  const byAlias = CATEGORY_ALIASES[raw.toLowerCase()];
+  if (byAlias) {
+    const fromCategories = CATEGORIES.find(c => String(c.slug).toLowerCase() === byAlias.toLowerCase());
+    return fromCategories ? fromCategories.slug : byAlias;
+  }
+
+  const byName = CATEGORIES.find(c => String(c.name).toLowerCase() === raw.toLowerCase());
+  if (byName) return byName.slug;
+
+  return raw;
+}
+
+function categoryMatches(productCategory, selectedCategory) {
+  return String(productCategory || '').toLowerCase() === String(selectedCategory || '').toLowerCase();
+}
+
+function getCategoryTitle(categorySlug) {
+  const selected = CATEGORIES.find(c => String(c.slug).toLowerCase() === String(categorySlug || '').toLowerCase());
+  if (selected) return selected.name;
+  return String(categorySlug || 'All Products');
+}
+
+function humanizeCategoryName(slug) {
+  const normalized = normalizeCategorySlug(slug);
+  const labels = {
+    CPU: 'CPUs',
+    GPU: 'GPUs',
+    Memory: 'RAM',
+    Motherboard: 'Motherboards',
+    Storage: 'Storage',
+    Cooling: 'Cooling',
+  };
+  return labels[normalized] || String(normalized || slug || 'Category');
+}
+
+function buildFallbackCategories(products) {
+  const seen = new Set();
+  const cats = [];
+
+  for (const p of products || []) {
+    const source = p.category_slug ?? p.category ?? p.type ?? null;
+    const slug = normalizeCategorySlug(source);
+    if (!slug || seen.has(slug)) continue;
+    seen.add(slug);
+    cats.push({ slug, name: humanizeCategoryName(slug), icon: '🧩' });
+  }
+
+  return cats;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function getImageCandidates(product) {
+  if (product.image_url) return [String(product.image_url)];
+  if (product.image) return [String(product.image)];
+
+  const id = product.id || product.product_id;
+  const byName = id && PRODUCT_IMAGE_MAP[id]
+    ? [`productimg/${encodeURIComponent(PRODUCT_IMAGE_MAP[id]).replace(/%2F/g, '/')}`]
+    : [];
+
+  const byId = id
+    ? PRODUCT_IMG_EXTS.map(ext => `productimg/${id}.${ext}`)
+    : [];
+
+  return [...byName, ...byId];
+}
+
+function renderProductVisual(product, size = 'card') {
+  const icon = product.icon || '📦';
+  const candidates = getImageCandidates(product);
+  const fallback = `<span class="product-emoji-fallback">${escapeHtml(icon)}</span>`;
+
+  if (!candidates.length) return fallback;
+
+  const cls = size === 'cart' ? 'product-photo cart' : 'product-photo';
+  return `<img class="${cls}" src="${escapeHtml(candidates[0])}" alt="${escapeHtml(product.name)}" loading="lazy"
+    data-fallback-index="0" data-fallbacks="${escapeHtml(candidates.join('|'))}"
+    onerror="handleProductImageError(this, '${escapeHtml(icon)}')">`;
+}
+
+function handleProductImageError(img, icon) {
+  const fallbacks = (img.dataset.fallbacks || '').split('|').filter(Boolean);
+  const nextIndex = Number(img.dataset.fallbackIndex || '0') + 1;
+
+  if (nextIndex < fallbacks.length) {
+    img.dataset.fallbackIndex = String(nextIndex);
+    img.src = fallbacks[nextIndex];
+    return;
+  }
+
+  img.onerror = null;
+  img.outerHTML = `<span class="product-emoji-fallback">${escapeHtml(icon || '📦')}</span>`;
+}
+
 // ============================================================
 // INIT — runs on page load
 // ============================================================
@@ -38,14 +175,21 @@ async function init() {
   showPageLoader();
   try {
     const [sessionRes, productsRes, catsRes] = await Promise.all([
-      apiGet('api/auth.php?action=me'),
-      apiGet('api/products.php?action=list'),
-      apiGet('api/products.php?action=categories'),
+      apiGet('auth.php?action=me'),
+      apiGet('products.php?action=list'),
+      apiGet('products.php?action=categories'),
     ]);
 
-    if (sessionRes.user) currentUser = sessionRes.user;
-    PRODUCTS   = productsRes.products   || [];
-    CATEGORIES = catsRes.categories     || [];
+    if (sessionRes?.user) currentUser = sessionRes.user;
+    PRODUCTS   = Array.isArray(productsRes?.products) ? productsRes.products : [];
+    CATEGORIES = Array.isArray(catsRes?.categories) ? catsRes.categories : [];
+
+    if (PRODUCTS.length === 0 && productsRes?.success === false) {
+      showToast('⚠️ ' + (productsRes.error || 'Could not load products'));
+    }
+    if (CATEGORIES.length === 0) {
+      CATEGORIES = buildFallbackCategories(PRODUCTS);
+    }
 
     if (currentUser) await loadCart();
   } catch (e) {
@@ -59,9 +203,10 @@ async function init() {
 // ============================================================
 // NAVIGATION
 // ============================================================
-function navigate(page, cat) {
+function navigate(page, cat, brand) {
   currentPage = page;
-  currentCat  = cat || null;
+  currentCat  = normalizeCategorySlug(cat);
+  currentBrand = brand ? String(brand).trim().toLowerCase() : null;
   render();
   window.scrollTo({ top: 0, behavior: 'smooth' });
   const si = document.getElementById('searchInput');
@@ -74,6 +219,7 @@ function handleSearch(val) {
   if (val.length > 0) {
     currentPage = 'products';
     currentCat  = null;
+    currentBrand = null;
     searchTimer = setTimeout(() => runSearch(val), 300);
   } else {
     currentPage = 'home';
@@ -83,7 +229,7 @@ function handleSearch(val) {
 
 async function runSearch(q) {
   try {
-    const res = await apiGet(`api/products.php?action=search&q=${encodeURIComponent(q)}`);
+    const res = await apiGet(`products.php?action=search&q=${encodeURIComponent(q)}`);
     document.getElementById('mainContent').innerHTML =
       renderProductsHTML(res.products || [], null, q);
   } catch (e) {
@@ -167,7 +313,7 @@ async function doLogin() {
 
   setButtonLoading('loginBtn', true, 'Signing in…');
   try {
-    const res = await apiPost('api/auth.php?action=login', { email, password: pass });
+    const res = await apiPost('auth.php?action=login', { email, password: pass });
     if (!res.success) { showToast('⚠️ ' + res.error); return; }
     currentUser = res.user;
     await loadCart();
@@ -194,7 +340,7 @@ async function doRegister() {
 
   setButtonLoading('regBtn', true, 'Creating account…');
   try {
-    const res = await apiPost('api/auth.php?action=register', {
+    const res = await apiPost('auth.php?action=register', {
       first_name: first, last_name: last, email, password: pass,
     });
     if (!res.success) { showToast('⚠️ ' + res.error); return; }
@@ -210,7 +356,7 @@ async function doRegister() {
 }
 
 async function logout() {
-  await apiPost('api/auth.php?action=logout');
+  await apiPost('auth.php?action=logout');
   currentUser = null;
   cart = [];
   updateCartBadge();
@@ -245,7 +391,7 @@ function renderAuthArea() {
 // ============================================================
 async function loadCart() {
   try {
-    const res = await apiGet('api/cart.php?action=get');
+    const res = await apiGet('cart.php?action=get');
     if (res.success) { cart = res.cart; updateCartBadge(); }
   } catch (e) { console.error('Cart load error', e); }
 }
@@ -263,7 +409,7 @@ async function addToCart(productId, el) {
   }
   if (el) { el.textContent = '…'; el.disabled = true; }
   try {
-    const res = await apiPost('api/cart.php?action=add', { product_id: productId, quantity: 1 });
+    const res = await apiPost('cart.php?action=add', { product_id: productId, quantity: 1 });
     if (!res.success) { showToast('⚠️ ' + res.error); return; }
     cart = res.cart;
     updateCartBadge();
@@ -283,7 +429,7 @@ async function addToCart(productId, el) {
 
 async function removeFromCart(productId) {
   try {
-    const res = await apiPost('api/cart.php?action=remove', { product_id: productId });
+    const res = await apiPost('cart.php?action=remove', { product_id: productId });
     if (res.success) { cart = res.cart; updateCartBadge(); renderCart(); }
   } catch (e) { showToast('⚠️ Could not remove item'); }
 }
@@ -292,7 +438,7 @@ async function changeQty(productId, delta) {
   const item = cart.find(i => i.product_id === productId);
   if (!item) return;
   try {
-    const res = await apiPost('api/cart.php?action=update', {
+    const res = await apiPost('cart.php?action=update', {
       product_id: productId,
       quantity: item.quantity + delta,
     });
@@ -324,7 +470,7 @@ function renderCart() {
 
   body.innerHTML = cart.map(item => `
     <div class="cart-item">
-      <div class="cart-item-img">${item.icon}</div>
+      <div class="cart-item-img">${renderProductVisual(item, 'cart')}</div>
       <div class="cart-item-info">
         <div class="cart-item-name">${item.name}</div>
         <div class="cart-item-price">$${item.price.toFixed(2)}</div>
@@ -364,7 +510,7 @@ async function checkout() {
   }
   setButtonLoading('checkoutBtn', true, 'Placing order…');
   try {
-    const res = await apiPost('api/orders.php?action=place');
+    const res = await apiPost('orders.php?action=place');
     if (!res.success) { showToast('⚠️ ' + res.error); return; }
     cart = [];
     updateCartBadge();
@@ -386,7 +532,7 @@ async function showOrders() {
   const el = document.getElementById('mainContent');
   el.innerHTML = `<div class="section"><p style="color:var(--text2)">Loading orders…</p></div>`;
   try {
-    const res = await apiGet('api/orders.php?action=history');
+    const res = await apiGet('orders.php?action=history');
     if (!res.success) { showToast('⚠️ ' + res.error); return; }
     el.innerHTML = renderOrdersHTML(res.orders);
   } catch (e) {
@@ -469,10 +615,14 @@ function renderMain() {
   if (currentPage === 'orders') return; // handled by showOrders()
 
   if (currentPage === 'products') {
-    const prods = currentCat
-      ? PRODUCTS.filter(p => p.category_slug === currentCat)
-      : PRODUCTS;
-    el.innerHTML = renderProductsHTML(prods, currentCat);
+    const normalizedSelected = normalizeCategorySlug(currentCat);
+    const prods = PRODUCTS.filter(p => {
+      const productCategory = normalizeCategorySlug(p.category_slug ?? p.category ?? p.type ?? null);
+      const categoryOk = !currentCat || categoryMatches(productCategory, normalizedSelected);
+      const brandOk = !currentBrand || String(p.brand || '').toLowerCase().includes(currentBrand);
+      return categoryOk && brandOk;
+    });
+    el.innerHTML = renderProductsHTML(prods, normalizedSelected || currentCat);
     return;
   }
 
@@ -533,7 +683,12 @@ function renderHomeHTML() {
 }
 
 function renderProductsHTML(prods, cat, searchQuery) {
-  const title = searchQuery ? `Search: "${searchQuery}"` : cat ? cat : 'All Products';
+  const categoryTitle = cat ? getCategoryTitle(cat) : 'All Products';
+  const title = searchQuery
+    ? `Search: "${searchQuery}"`
+    : currentBrand
+      ? `${categoryTitle} (${currentBrand.toUpperCase()})`
+      : categoryTitle;
   return `
   <div class="section" style="padding-top:2rem">
     <div class="section-header">
@@ -582,7 +737,7 @@ function renderProductCard(p) {
              ${p.badge === 'SALE' && discount ? '-' + discount + '%' : p.badge}
            </div>`
         : ''}
-      <span style="font-size:3.5rem">${p.icon}</span>
+      ${renderProductVisual(p)}
     </div>
     <div class="prod-info">
       <div class="prod-brand">${p.brand}</div>

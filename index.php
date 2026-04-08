@@ -30,8 +30,8 @@
         <button class="nav-link" onclick="navigate('products','CPU')">CPUs <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 4l4 4 4-4"/></svg></button>
         <div class="dropdown">
           <div class="drop-label">By Manufacturer</div>
-          <a class="drop-item" onclick="navigate('products','CPU')"><div class="drop-item-icon" style="background:rgba(79,142,247,0.15)">🔵</div>Intel Core Series</a>
-          <a class="drop-item" onclick="navigate('products','CPU')"><div class="drop-item-icon" style="background:rgba(239,68,68,0.15)">🔴</div>AMD Ryzen Series</a>
+          <a class="drop-item" onclick="navigate('products','CPU','intel')"><div class="drop-item-icon" style="background:rgba(79,142,247,0.15)">🔵</div>Intel Core Series</a>
+          <a class="drop-item" onclick="navigate('products','CPU','amd')"><div class="drop-item-icon" style="background:rgba(239,68,68,0.15)">🔴</div>AMD Ryzen Series</a>
           <div class="drop-divider"></div>
           <div class="drop-label">By Segment</div>
           <a class="drop-item" onclick="navigate('products','CPU')">🏆 High-End / HEDT</a>
@@ -44,22 +44,22 @@
         <button class="nav-link" onclick="navigate('products','GPU')">GPUs <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 4l4 4 4-4"/></svg></button>
         <div class="dropdown">
           <div class="drop-label">By Brand</div>
-          <a class="drop-item" onclick="navigate('products','GPU')"><div class="drop-item-icon" style="background:rgba(6,214,160,0.15)">💚</div>NVIDIA GeForce</a>
-          <a class="drop-item" onclick="navigate('products','GPU')"><div class="drop-item-icon" style="background:rgba(239,68,68,0.15)">❤️</div>AMD Radeon</a>
+          <a class="drop-item" onclick="navigate('products','GPU','nvidia')"><div class="drop-item-icon" style="background:rgba(6,214,160,0.15)">💚</div>NVIDIA GeForce</a>
+          <a class="drop-item" onclick="navigate('products','GPU','amd')"><div class="drop-item-icon" style="background:rgba(239,68,68,0.15)">❤️</div>AMD Radeon</a>
           <div class="drop-divider"></div>
           <a class="drop-item" onclick="navigate('products','GPU')">🎮 Gaming GPUs</a>
           <a class="drop-item" onclick="navigate('products','GPU')">🤖 Workstation / AI</a>
         </div>
       </div>
-      <!-- Memory -->
+      <!-- RAM -->
       <div class="nav-item">
-        <button class="nav-link" onclick="navigate('products','Memory')">Memory <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 4l4 4 4-4"/></svg></button>
+        <button class="nav-link" onclick="navigate('products','RAM')">RAM <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 4l4 4 4-4"/></svg></button>
         <div class="dropdown">
-          <a class="drop-item" onclick="navigate('products','Memory')">🟩 DDR5 RAM</a>
-          <a class="drop-item" onclick="navigate('products','Memory')">🟦 DDR4 RAM</a>
+          <a class="drop-item" onclick="navigate('products','RAM')">🟩 DDR5 RAM</a>
+          <a class="drop-item" onclick="navigate('products','RAM')">🟦 DDR4 RAM</a>
           <div class="drop-divider"></div>
-          <a class="drop-item" onclick="navigate('products','Memory')">💡 RGB Memory Kits</a>
-          <a class="drop-item" onclick="navigate('products','Memory')">🏎️ High-Speed Kits</a>
+          <a class="drop-item" onclick="navigate('products','RAM')">💡 RGB Memory Kits</a>
+          <a class="drop-item" onclick="navigate('products','RAM')">🏎️ High-Speed Kits</a>
         </div>
       </div>
       <!-- More -->
@@ -105,7 +105,7 @@
       <h4>Shop</h4>
       <a onclick="navigate('products','CPU')">CPUs</a>
       <a onclick="navigate('products','GPU')">GPUs</a>
-      <a onclick="navigate('products','Memory')">Memory</a>
+      <a onclick="navigate('products','RAM')">RAM</a>
       <a onclick="navigate('products','Storage')">Storage</a>
       <a onclick="navigate('products','Motherboard')">Motherboards</a>
     </div>
