@@ -1,5 +1,4 @@
 <?php
-// api/orders.php — handles: place | history | detail
 session_start();
 header('Content-Type: application/json');
 require_once __DIR__ . '/db.php';
@@ -15,19 +14,14 @@ $action = $_GET['action'] ?? '';
 
 switch ($action) {
 
-    // -------------------------------------------------------
-    // POST /api/orders.php?action=place
-    // Converts the user's current cart into an order
-    // -------------------------------------------------------
     case 'place': {
         $userId = requireAuth();
         $db     = getDB();
 
-        // Load cart
         $stmt = $db->prepare(
-            'SELECT ci.quantity, p.id AS product_id, p.name, p.icon, p.price, p.stock
+            'SELECT ci.cart_item_qty AS quantity, p.id AS product_id, p.name, p.price
              FROM cart_items ci
-             JOIN products p ON p.id = ci.product_id
+             JOIN products_full p ON p.id = ci.product_id
              WHERE ci.user_id = ?'
         );
         $stmt->execute([$userId]);
@@ -37,7 +31,6 @@ switch ($action) {
             json_response(['success' => false, 'error' => 'Cart is empty'], 422);
         }
 
-        // Compute totals
         $subtotal = 0.0;
         foreach ($items as $item) {
             $subtotal += (float) $item['price'] * (int) $item['quantity'];
@@ -47,42 +40,26 @@ switch ($action) {
 
         $db->beginTransaction();
         try {
-            // Insert order
             $stmt = $db->prepare(
-                'INSERT INTO orders (user_id, subtotal, shipping, total, status)
+                'INSERT INTO orders (user_id, order_subtotal, order_shipping, order_total, order_status)
                  VALUES (?, ?, ?, ?, "pending")'
             );
             $stmt->execute([$userId, $subtotal, $shipping, $total]);
             $orderId = (int) $db->lastInsertId();
 
-            // Insert order items
             $itemStmt = $db->prepare(
-                'INSERT INTO order_items (order_id, product_id, product_name, product_icon, unit_price, quantity)
-                 VALUES (?, ?, ?, ?, ?, ?)'
+                'INSERT INTO order_items (order_id, product_id, order_items_price, order_items_qty, order_items_total)
+                 VALUES (?, ?, ?, ?, ?)'
             );
             foreach ($items as $item) {
-                $itemStmt->execute([
-                    $orderId,
-                    (int)   $item['product_id'],
-                    $item['name'],
-                    $item['icon'],
-                    (float) $item['price'],
-                    (int)   $item['quantity'],
-                ]);
+                $lineTotal = (float) $item['price'] * (int) $item['quantity'];
+                $itemStmt->execute([$orderId, (int)$item['product_id'], (float)$item['price'], (int)$item['quantity'], $lineTotal]);
             }
 
-            // Clear cart
             $db->prepare('DELETE FROM cart_items WHERE user_id = ?')->execute([$userId]);
-
             $db->commit();
 
-            json_response([
-                'success'  => true,
-                'order_id' => $orderId,
-                'total'    => $total,
-                'shipping' => $shipping,
-            ], 201);
-
+            json_response(['success' => true, 'order_id' => $orderId, 'total' => $total, 'shipping' => $shipping], 201);
         } catch (Exception $e) {
             $db->rollBack();
             json_response(['success' => false, 'error' => 'Order failed: ' . $e->getMessage()], 500);
@@ -90,21 +67,18 @@ switch ($action) {
         break;
     }
 
-    // -------------------------------------------------------
-    // GET /api/orders.php?action=history
-    // Returns all orders for the logged-in user (newest first)
-    // -------------------------------------------------------
     case 'history': {
         $userId = requireAuth();
         $db     = getDB();
 
         $stmt = $db->prepare(
-            'SELECT o.id, o.subtotal, o.shipping, o.total, o.status, o.placed_at,
-                    COUNT(oi.id) AS item_count
+            'SELECT o.order_id AS id, o.order_subtotal AS subtotal, o.order_shipping AS shipping,
+                    o.order_total AS total, o.order_status AS status, o.placed_at,
+                    COUNT(oi.product_id) AS item_count
              FROM orders o
-             LEFT JOIN order_items oi ON oi.order_id = o.id
+             LEFT JOIN order_items oi ON oi.order_id = o.order_id
              WHERE o.user_id = ?
-             GROUP BY o.id
+             GROUP BY o.order_id
              ORDER BY o.placed_at DESC'
         );
         $stmt->execute([$userId]);
@@ -123,29 +97,27 @@ switch ($action) {
         break;
     }
 
-    // -------------------------------------------------------
-    // GET /api/orders.php?action=detail&id=42
-    // Returns one order with its line items
-    // -------------------------------------------------------
     case 'detail': {
         $userId  = requireAuth();
         $orderId = (int) ($_GET['id'] ?? 0);
         $db      = getDB();
 
         $stmt = $db->prepare(
-            'SELECT id, subtotal, shipping, total, status, placed_at
-             FROM orders WHERE id = ? AND user_id = ?'
+            'SELECT order_id AS id, order_subtotal AS subtotal, order_shipping AS shipping,
+                    order_total AS total, order_status AS status, placed_at
+             FROM orders WHERE order_id = ? AND user_id = ?'
         );
         $stmt->execute([$orderId, $userId]);
         $order = $stmt->fetch();
 
-        if (!$order) {
-            json_response(['success' => false, 'error' => 'Order not found'], 404);
-        }
+        if (!$order) json_response(['success' => false, 'error' => 'Order not found'], 404);
 
         $stmt = $db->prepare(
-            'SELECT product_id, product_name, product_icon, unit_price, quantity
-             FROM order_items WHERE order_id = ?'
+            'SELECT oi.product_id, p.product_name, oi.order_items_price AS unit_price,
+                    oi.order_items_qty AS quantity, oi.order_items_total AS line_total
+             FROM order_items oi
+             JOIN products p ON p.product_id = oi.product_id
+             WHERE oi.order_id = ?'
         );
         $stmt->execute([$orderId]);
         $lineItems = $stmt->fetchAll();
@@ -154,6 +126,7 @@ switch ($action) {
             $li['product_id'] = (int)   $li['product_id'];
             $li['unit_price'] = (float) $li['unit_price'];
             $li['quantity']   = (int)   $li['quantity'];
+            $li['line_total'] = (float) $li['line_total'];
         }
         unset($li);
 
